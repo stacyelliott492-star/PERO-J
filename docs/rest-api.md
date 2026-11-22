@@ -88,7 +88,6 @@ Remove a contract registration.
 **Response** `204 No Content`
 
 ### `GET /events`
-
 Query decoded events. Supports optional `address` and `name` filters.
 
 **Request**
@@ -113,6 +112,32 @@ GET /events?address=0x1234567890abcdef1234567890abcdef12345678&name=Transfer
   }
 ]
 ```
+
+### `GET /api/v1/markets/stream`
+
+Subscribe to live updates for all markets, or filter to one market with
+`?market_id={id}`. The stream sends a `connected` message on open, JSON `data`
+frames when a bet or oracle state changes, and comment heartbeats every 15
+seconds. `EventSource` clients reconnect automatically if the connection drops.
+
+Example market update:
+
+```json
+{
+  "marketId": "market-123",
+  "contractId": "C...",
+  "type": "bet_placed",
+  "data": {
+    "total_pool": 12000,
+    "outcome_pools": { "yes": 8000, "no": 4000 },
+    "odds": { "yes": 1.5, "no": 3.0 }
+  },
+  "timestamp": 1730000000000
+}
+```
+
+Oracle updates use `type: "oracle_state"` and include the latest
+`oracle_state` and `outcome` in `data`.
 
 ### `GET /health`
 

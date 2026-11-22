@@ -9,10 +9,11 @@ import { resolvePollMs } from "./resolvePollMs.js";
 import { handleOracleSubmission } from "./handlers/oracle_submission.js";
 import { handleOracleDispute } from "./handlers/oracle_dispute.js";
 import { handleOracleFinalized } from "./handlers/oracle_finalized.js";
+import { health } from "./health-state.js";
 
 dotenv.config();
 
-/** @typedef {import('./types.js').HealthState} HealthState */
+export { health };
 
 const RPC_URL = process.env.SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org";
 const START_LEDGER = Number(process.env.START_LEDGER || 0);
@@ -29,21 +30,6 @@ const WRITER_STANDBY_POLL_MS = 5000;
 const WRITER_HEARTBEAT_MS = 5000;
 
 let rpc = new SorobanRpc.Server(RPC_URL, { allowHttp: true });
-
-/**
- * Shared health state exposed to the REST API via api.js.
- * Updated each time a ledger is successfully indexed.
- *
- * @type {HealthState}
- */
-export const health = {
-  /** Timestamp (ms) of the last successfully processed ledger, or null if none yet. */
-  lastIndexedAt: null,
-  /** Most-recently processed ledger sequence number. */
-  lastLedger: null,
-  /** Process start time for uptime calculation. */
-  startedAt: Date.now(),
-};
 
 /**
  * Recursively walk decoded topic/data values and collect every Stellar

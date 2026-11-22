@@ -4,9 +4,16 @@ import { StrKey } from "@stellar/stellar-sdk";
 import { db } from "./db.js";
 import { fetchTokenMetadata } from "./sep41Metadata.js";
 import { formatOracleDisputes, oracleDisputes } from "./oracleDisputes.js";
-import { health } from "./index.js";
-import { eventEmitter } from "./events.js";
+import { health } from "./health-state.js";
+import { emitMarketUpdate, eventEmitter } from "./events.js";
 import { MAX_TITLE_LEN, MAX_DESCRIPTION_LEN } from "./sanitize.js";
+import { bondEscrowWorker } from "./bond-escrow-worker.js";
+import { marketCacheManager, BET_PLACED_CHANNEL } from "./cache-manager.js";
+import { publish } from "./redis.js";
+import { renderMetrics } from "./metrics.js";
+import { verifyAndConsumeOracleAttestation, OracleVerificationError } from "./oracle.js";
+import { createCorsMiddleware } from "./middleware/cors.js";
+import { securityHeaders } from "./middleware/securityHeaders.js";
 
 const PORT = process.env.PORT || 3001;
 
@@ -153,8 +160,6 @@ export function createApp() {
     res.type("text/plain; version=0.0.4").send(renderMetrics());
   });
 
-  registerOracleRoutes(app, requireAdminKey, asyncHandler);
-
   // GET /health — liveness + readiness probe for container orchestrators and uptime monitors
   app.get(
     "/health",
@@ -234,6 +239,37 @@ export function createApp() {
   });
 
   const v1Router = express.Router();
+
+  // GET /api/v1/markets/stream — push live updates for a market or all markets
+  v1Router.get("/markets/stream", (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders?.();
+
+    const marketFilter = String(req.query.market_id ?? req.query.market ?? "").trim();
+    const contractFilter = String(req.query.contract ?? "").trim();
+
+    res.write(`data: ${JSON.stringify({ type: "connected", timestamp: Date.now() })}\n\n`);
+
+    const onMarketUpdate = (update) => {
+      if (marketFilter && update.marketId !== marketFilter) return;
+      if (contractFilter && update.contractId !== contractFilter) return;
+      res.write(`data: ${JSON.stringify(update)}\n\n`);
+    };
+
+    const heartbeatTimer = setInterval(() => {
+      res.write(": keepalive\n\n");
+    }, 15_000);
+
+    eventEmitter.on("market_update", onMarketUpdate);
+
+    res.on("close", () => {
+      clearInterval(heartbeatTimer);
+      eventEmitter.off("market_update", onMarketUpdate);
+    });
+  });
 
   // GET /api/v1/functions — distinct function names across all events
   v1Router.get(
@@ -399,6 +435,14 @@ export function createApp() {
     asyncHandler(async (req, res) => {
       const result = await marketCacheManager.handleBetPlacedEvent(req.body);
       await publish(BET_PLACED_CHANNEL, req.body);
+      if (result.success) {
+        emitMarketUpdate({
+          marketId: String(req.body.market_id ?? req.body.marketId),
+          contractId: req.body.contract_id ?? req.body.contractId,
+          type: "bet_placed",
+          data: req.body,
+        });
+      }
       res.status(200).json(result);
     })
   );
@@ -527,39 +571,6 @@ export function createApp() {
   });
 
 
-  // GET /api/markets/stream - Server-Sent Events endpoint for real-time market updates
-  // Eliminates 3-5 second polling latency and conserves bandwidth on static markets
-  app.get("/api/markets/stream", (req, res) => {
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders?.();
-
-    const targetContract = req.query.contract ? String(req.query.contract).trim() : null;
-
-    // Send initial connection ack
-    res.write(`data: ${JSON.stringify({ type: "connected", timestamp: Date.now() })}\n\n`);
-
-    const onMarketUpdate = (update) => {
-      if (targetContract && update.contractId && update.contractId !== targetContract) {
-        return;
-      }
-      res.write(`data: ${JSON.stringify(update)}\n\n`);
-    };
-
-    // Heartbeat to keep connection alive without pushing redundant static market data
-    const heartbeatTimer = setInterval(() => {
-      res.write(": keepalive\n\n");
-    }, 15000);
-
-    eventEmitter.on("market_update", onMarketUpdate);
-
-    res.on("close", () => {
-      clearInterval(heartbeatTimer);
-      eventEmitter.off("market_update", onMarketUpdate);
-    });
-  });
   // GET /api/events/:seq/raw — raw un-decoded topics and data for a single event.
   // Must be registered BEFORE /api/events/:seq so Express doesn't consume "raw"
   // as the :seq parameter.
@@ -686,6 +697,7 @@ export function createApp() {
   app.post("/api/oracle/attestations", handleOracleAttestation);
   app.post("/api/oracle/attestation", handleOracleAttestation);
 
+  app.use("/api/v1", v1Router);
   return app;
 }
 

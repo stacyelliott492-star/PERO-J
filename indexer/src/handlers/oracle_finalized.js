@@ -1,5 +1,6 @@
 import { db } from "../db.js";
 import { invalidateMarketCache } from "../cache.js";
+import { emitMarketUpdate } from "../events.js";
 
 /**
  * Handle oracle_finalized events.
@@ -49,6 +50,12 @@ export async function handleOracleFinalized(decoded, topics, data) {
       contract_id: decoded.contract_id,
       oracle_state: "finalized",
       outcome: finalOutcome,
+    });
+    emitMarketUpdate({
+      marketId,
+      contractId: decoded.contract_id,
+      type: "oracle_state",
+      data: { oracle_state: "finalized", outcome: finalOutcome },
     });
 
     // Invalidate cache for this market

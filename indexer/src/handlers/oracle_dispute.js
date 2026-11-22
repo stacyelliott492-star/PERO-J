@@ -1,5 +1,6 @@
 import { db } from "../db.js";
 import { invalidateMarketCache } from "../cache.js";
+import { emitMarketUpdate } from "../events.js";
 
 /**
  * Handle oracle_dispute events.
@@ -63,6 +64,12 @@ export async function handleOracleDispute(decoded, topics, data) {
       contract_id: decoded.contract_id,
       oracle_state: "disputed",
       outcome: submission.outcome, // Preserve the disputed outcome
+    });
+    emitMarketUpdate({
+      marketId,
+      contractId: decoded.contract_id,
+      type: "oracle_state",
+      data: { oracle_state: "disputed", outcome: submission.outcome },
     });
 
     // Invalidate cache for this market
