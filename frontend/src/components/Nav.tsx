@@ -176,9 +176,6 @@ export default function Nav() {
           <span aria-hidden="true">☰</span>
         </button>
         <nav id="primary-navigation" aria-label="Primary" className={`nav-links${menuOpen ? " open" : ""}`}>
-          <NavLink to="/markets" onClick={() => setMenuOpen(false)} style={({ isActive }) => linkStyle(isActive)}>
-            Markets
-          </NavLink>
           <NavLink to="/contracts" onClick={() => setMenuOpen(false)} style={({ isActive }) => linkStyle(isActive)}>
             Contracts
           </NavLink>

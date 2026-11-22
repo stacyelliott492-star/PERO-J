@@ -1,6 +1,5 @@
 import { db } from "../db.js";
 import { invalidateMarketCache } from "../cache.js";
-import { emitMarketUpdate } from "../events.js";
 
 /**
  * Handle oracle_submission events.
@@ -52,12 +51,6 @@ export async function handleOracleSubmission(decoded, topics, data) {
       contract_id: decoded.contract_id,
       oracle_state: "submitted",
       outcome,
-    });
-    emitMarketUpdate({
-      marketId,
-      contractId: decoded.contract_id,
-      type: "oracle_state",
-      data: { oracle_state: "submitted", outcome },
     });
 
     // Invalidate cache for this market

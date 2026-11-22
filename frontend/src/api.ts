@@ -47,23 +47,6 @@ export interface ContractsResponse {
   limit: number;
 }
 
-export interface Market {
-  id: string;
-  contract_id: string;
-  oracle_state?: string | null;
-  outcome?: string | null;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface MarketsResponse {
-  markets: Market[];
-  total: number;
-  page: number;
-  limit: number;
-  next_cursor: string | null;
-}
-
 export interface ProposedOutcome {
   id: string;
   contract_id: string;
@@ -279,8 +262,6 @@ export function streamEvents(
 
 
 export interface MarketUpdate {
-  marketId?: string;
-  market_id?: string;
   contractId?: string;
   type: string;
   data?: Record<string, unknown>;
@@ -292,12 +273,12 @@ export interface MarketUpdate {
  * Eliminates 3-5s polling latency and saves bandwidth on static markets.
  */
 export function streamMarketUpdates(
-  marketId: string | undefined,
+  contractId: string | undefined,
   onUpdate: (update: MarketUpdate) => void,
   onError?: (err: Event) => void
 ): () => void {
-  const q = marketId ? `?market_id=${encodeURIComponent(marketId)}` : "";
-  const url = `${BASE}/v1/markets/stream${q}`;
+  const q = contractId ? `?contract=${encodeURIComponent(contractId)}` : "";
+  const url = `${BASE}/markets/stream${q}`;
   const eventSource = new EventSource(url);
 
   eventSource.onmessage = (e) => {
@@ -334,13 +315,6 @@ export const api = {
     if (params.page)    q.set("page", String(params.page));
     if (params.limit)   q.set("limit", String(params.limit));
     return get<ContractsResponse>(`/contracts?${q}`);
-  },
-  markets:           (params: { page?: number; limit?: number; cursor?: string } = {}) => {
-    const q = new URLSearchParams();
-    if (params.page)    q.set("page", String(params.page));
-    if (params.limit)   q.set("limit", String(params.limit));
-    if (params.cursor)  q.set("cursor", params.cursor);
-    return get<MarketsResponse>(`/markets?${q}`);
   },
   contract:         (id: string)                          => get<ContractMeta>(`/contracts/${id}`),
   wallet:           (address: string, page: number = 1)   => get<WalletEventsResponse>(`/wallet/${address}?page=${page}`),
