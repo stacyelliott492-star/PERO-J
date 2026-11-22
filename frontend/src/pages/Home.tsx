@@ -1,11 +1,8 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import EventTable from "../components/EventTable";
-import MarketCard from "../components/MarketCard";
 import Skeleton, { SkeletonBar } from "../components/Skeleton";
-import { useMarketLiveUpdates } from "../hooks/useMarketLiveUpdates";
 
 export default function Home() {
   const [fnFilter, setFnFilter] = useState("");
@@ -27,18 +24,6 @@ export default function Home() {
     queryFn: () => api.distinctFunctions(),
     staleTime: 5 * 60 * 1000,
   });
-
-  const {
-    data: marketsData,
-    isLoading: marketsLoading,
-    isError: marketsError,
-    error: marketsQueryError,
-  } = useQuery({
-    queryKey: ["markets", "home"],
-    queryFn: () => api.markets({ limit: 6 }),
-  });
-  const { updates: marketUpdates, connected: marketsConnected, error: marketsStreamError } =
-    useMarketLiveUpdates();
 
   const effectiveFn = customFn || fnFilter || undefined;
 
@@ -77,31 +62,6 @@ export default function Home() {
           Human-readable Soroban contract events on Stellar.
         </p>
       </div>
-
-      <section aria-labelledby="markets-heading" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-          <h2 id="markets-heading" style={{ fontSize: 18 }}>Markets</h2>
-          <Link to="/markets">Browse all markets</Link>
-        </div>
-        <p aria-live="polite" style={{ color: marketsStreamError ? "var(--red, #cf222e)" : "var(--muted)", fontSize: 12 }}>
-          {marketsStreamError ?? (marketsConnected ? "Live market updates connected" : "Connecting to live market updates…")}
-        </p>
-        {marketsError ? (
-          <p role="alert" style={{ color: "var(--red, #cf222e)" }}>
-            Could not load markets: {marketsQueryError instanceof Error ? marketsQueryError.message : "Unknown error"}
-          </p>
-        ) : marketsLoading ? (
-          <SkeletonBar width={220} height={16} />
-        ) : (marketsData?.markets.length ?? 0) === 0 ? (
-          <p style={{ color: "var(--muted)" }}>No markets have been indexed yet.</p>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
-            {marketsData?.markets.map((market) => (
-              <MarketCard key={market.id} market={market} update={marketUpdates[market.id]} />
-            ))}
-          </div>
-        )}
-      </section>
 
       {/* Filters */}
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>

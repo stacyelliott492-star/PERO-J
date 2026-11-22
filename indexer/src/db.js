@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import pg from "pg";
 import { createHash } from "node:crypto";
-import { emitBetEventUpdate, eventEmitter } from "./events.js";
+import { eventEmitter } from "./events.js";
 
 /** @typedef {import('./types.js').DecodedEvent} DecodedEvent */
 /** @typedef {import('./types.js').ContractMeta} ContractMeta */
@@ -378,7 +378,6 @@ export const db = {
   async upsertEvent(ev) {
     await insertEvent(pool, ev);
     eventEmitter.emit("event", ev);
-    emitBetEventUpdate(ev);
   },
 
   /**
@@ -417,7 +416,6 @@ export const db = {
 
     for (const ev of events) {
       eventEmitter.emit("event", ev);
-      emitBetEventUpdate(ev);
     }
   },
 
